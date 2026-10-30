@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#08080a">
+    <title>病娇依赖模式问卷</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <!-- ============ 封面 ============ -->
+    <section class="screen active" id="screen-cover">
+        <div class="inner cover-inner">
+            <div class="eyebrow">Attachment · Quiz</div>
+            <h1 class="title">病娇依赖<br><span>模式问卷</span></h1>
+            <p class="lead">你靠什么方式，离不开一个人？</p>
+            <p class="note">18 道情境题 · 9 种依赖类型<br>不必过度思考，第一反应往往最诚实。</p>
+            <button class="btn btn-primary" id="startBtn">开始作答</button>
+
+            <div class="disclaimer">
+                <p class="disclaimer-title">⚠ 声明</p>
+                <p>本问卷为娱乐向性格测试，所有结果不构成心理诊断、行为建议或关系指导。</p>
+                <p>问卷会以匿名形式记录你的作答结果（不含姓名、IP 等可识别信息），仅用于统计与改进题目。</p>
+                <p class="disclaimer-bold">
+                    如果你或你身边的人正处于真实的病娇关系（跟踪、控制、威胁、自伤胁迫等），请立即联系当地心理援助或报警，<u>不要联系作者</u>。作者只负责写代码，不负责处理真实世界里的刀。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 问卷 ============ -->
+    <section class="screen" id="screen-quiz">
+        <div class="inner">
+            <div class="topbar">
+                <span class="qnum" id="qnum">01 / 18</span>
+                <div class="progress">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+            </div>
+
+            <div class="q-card" id="qCard">
+                <h2 class="q-text" id="qText"></h2>
+                <div class="opts" id="opts"></div>
+            </div>
+
+            <div class="nav">
+                <button class="btn btn-ghost" id="prevBtn">上一题</button>
+                <button class="btn btn-primary" id="nextBtn" disabled>下一题</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ 结果 ============ -->
+    <section class="screen" id="screen-result">
+        <div class="inner" id="resultInner">
+            <div class="eyebrow">Your Result</div>
+            <div class="res-name" id="resName">—</div>
+            <div class="res-tag" id="resTag"></div>
+            <p class="res-desc" id="resDesc"></p>
+
+            <div class="section-title">依赖图谱</div>
+            <div class="chart" id="chart"></div>
+
+            <div class="intensity">
+                <div class="int-head">
+                    <span class="int-label">病娇依赖浓度</span>
+                    <span class="int-value" id="intValue">—</span>
+                </div>
+                <p class="int-desc" id="intDesc"></p>
+            </div>
+
+            <div class="section-title">其余倾向</div>
+            <div class="tags" id="tags"></div>
+
+            <p class="quality-note" id="qualityNote" hidden aria-live="polite"></p>
+            <p class="submit-status" id="submitStatus" aria-live="polite"></p>
+
+            <div class="result-actions">
+                <button class="btn btn-primary" id="restartBtn">重新作答</button>
+            </div>
+
+            <p class="result-footer">
+                以上结果仅为娱乐。真实世界里的病娇请拨打心理援助热线，<b>别找作者</b>。
+            </p>
+        </div>
+    </section>
+
+    <script src="script.js" defer></script>
+</body>
+
+</html>
