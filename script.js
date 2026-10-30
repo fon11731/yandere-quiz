@@ -2,13 +2,13 @@
   "use strict";
 
   /* =========================================================
-     提交配置（部署前必改！）
+     提交配置（已填入你的专属配置）
      ========================================================= */
-  const SUPABASE_URL = "https://vrjtpuktwycvzbfbtmvv.supabase.co"; // ← 替换为你的 Project URL
-  const SUPABASE_ANON_KEY = "sb_publishable_6XJKVene4ij4dpKv0ugT0g_u6vZaHia"; // ← 替换为你的 anon key
-  const TABLE = "responses";
-  const QUIZ_VERSION = "1.1";
-  
+  const SUPABASE_URL      = "https://vrjtpuktwycvzbfbtmvv.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_6XJKVene4ij4dpKv0ugT0g_u6vZaHia";
+  const TABLE             = "responses";
+  const QUIZ_VERSION      = "1.0";
+
   /* =========================================================
      九种依赖类型
      ========================================================= */
@@ -156,6 +156,9 @@
   let startTs = Date.now();
   let timings = new Array(QUESTIONS.length).fill(null);
   let questionShownAt = 0;
+  
+  let countdownTimer = null;
+  const TIME_LIMIT = 15; 
 
   /* =========================================================
      DOM
@@ -177,6 +180,7 @@
   const optsEl     = $("#opts");
   const prevBtn    = $("#prevBtn");
   const nextBtn    = $("#nextBtn");
+  const countdownEl= $("#countdown");
   const resName    = $("#resName");
   const resTag     = $("#resTag");
   const resDesc    = $("#resDesc");
@@ -188,9 +192,6 @@
 
   const LETTERS = ["A", "B", "C", "D"];
 
-  /* =========================================================
-     屏幕切换
-     ========================================================= */
   function show(name) {
     Object.keys(screens).forEach(function (k) {
       screens[k].classList.toggle("active", k === name);
@@ -202,9 +203,28 @@
 
   function pad2(n) { return n < 10 ? "0" + n : "" + n; }
 
-  /* =========================================================
-     问卷渲染
-     ========================================================= */
+  function startCountdown() {
+    if (countdownTimer) clearInterval(countdownTimer);
+    let timeLeft = TIME_LIMIT;
+    
+    if (countdownEl) {
+      countdownEl.textContent = timeLeft + "s";
+      countdownEl.classList.remove("danger");
+    }
+
+    countdownTimer = setInterval(function () {
+      timeLeft--;
+      if (countdownEl) {
+        countdownEl.textContent = timeLeft + "s";
+        if (timeLeft <= 5) countdownEl.classList.add("danger");
+      }
+      if (timeLeft <= 0) {
+        clearInterval(countdownTimer);
+        if (answers[idx] === null) selectOption(0, true);
+      }
+    }, 1000);
+  }
+
   function renderQuestion() {
     const q = QUESTIONS[idx];
 
@@ -222,7 +242,7 @@
 
     optsEl.querySelectorAll(".opt").forEach(function (btn) {
       btn.addEventListener("click", function () {
-        selectOption(parseInt(btn.dataset.i, 10));
+        selectOption(parseInt(btn.dataset.i, 10), false);
       });
     });
 
@@ -235,13 +255,15 @@
     qCard.classList.add("anim-in");
 
     questionShownAt = performance.now();
+    startCountdown();
   }
 
-  function selectOption(i) {
+  function selectOption(i, isTimeout) {
     if (locked) return;
+    clearInterval(countdownTimer);
 
     answers[idx] = i;
-    timings[idx] = Math.round(performance.now() - questionShownAt);
+    timings[idx] = isTimeout ? (TIME_LIMIT * 1000) : Math.round(performance.now() - questionShownAt);
 
     optsEl.querySelectorAll(".opt").forEach(function (b, j) {
       b.classList.toggle("selected", j === i);
@@ -254,12 +276,15 @@
         locked = false;
         idx++;
         renderQuestion();
-      }, 320);
+      }, isTimeout ? 200 : 320);
+    } else {
+      if (isTimeout) setTimeout(function() { showResult(); }, 200);
     }
   }
 
   function goNext() {
     if (answers[idx] === null) return;
+    clearInterval(countdownTimer);
     if (idx < QUESTIONS.length - 1) {
       idx++;
       renderQuestion();
@@ -270,15 +295,13 @@
 
   function goPrev() {
     if (locked) return;
+    clearInterval(countdownTimer);
     if (idx > 0) {
       idx--;
       renderQuestion();
     }
   }
 
-  /* =========================================================
-     计分
-     ========================================================= */
   function computeScores() {
     const scores = {};
     TYPES.forEach(function (t) { scores[t.key] = 0; });
@@ -295,9 +318,6 @@
     return scores;
   }
 
-  /* =========================================================
-     乱答检测
-     ========================================================= */
   const Q = {
     FAST_MS: 900,
     AVG_FAST_MS: 1000,
@@ -317,6 +337,7 @@
 
     const fastCount = valid.filter(function (t) { return t < Q.FAST_MS; }).length;
     const fastRatio = valid.length ? fastCount / valid.length : 0;
+    const timeoutCount = valid.filter(function (t) { return t >= (TIME_LIMIT * 1000 - 500); }).length;
 
     let maxStreak = 1, streak = 1;
     for (let i = 1; i < n; i++) {
@@ -348,6 +369,7 @@
     if (dominantRatio > Q.DOMINANT_RATIO) flags.push("dominant_position");
     if (entropy < Q.ENTROPY_MIN) flags.push("low_entropy");
     if (totalMs < Q.TOTAL_FAST_MS) flags.push("total_too_fast");
+    if (timeoutCount >= 4) flags.push("too_many_timeouts");
 
     let score = 100;
     if (flags.indexOf("avg_too_fast") !== -1)      score -= 25;
@@ -356,12 +378,15 @@
     if (flags.indexOf("dominant_position") !== -1) score -= 15;
     if (flags.indexOf("low_entropy") !== -1)       score -= 15;
     if (flags.indexOf("total_too_fast") !== -1)    score -= 20;
+    if (flags.indexOf("too_many_timeouts") !== -1) score -= 30;
+    
     score = Math.max(0, Math.min(100, score));
 
     const suspicious =
       score < Q.SUSPICIOUS_SCORE ||
       flags.indexOf("straight_line") !== -1 ||
-      flags.indexOf("many_fast") !== -1;
+      flags.indexOf("many_fast") !== -1 ||
+      flags.indexOf("too_many_timeouts") !== -1;
 
     return {
       suspicious: suspicious,
@@ -372,13 +397,11 @@
       maxStreak: maxStreak,
       dominantRatio: Math.round(dominantRatio * 100) / 100,
       entropy: Math.round(entropy * 100) / 100,
-      totalMs: Math.round(totalMs)
+      totalMs: Math.round(totalMs),
+      timeoutCount: timeoutCount
     };
   }
 
-  /* =========================================================
-     提交到 Supabase
-     ========================================================= */
   async function submitResult(payload) {
     const el = document.getElementById("submitStatus");
     if (el) el.textContent = "正在记录结果…";
@@ -417,28 +440,30 @@
     }
   }
 
-  /* =========================================================
-     结果页
-     ========================================================= */
   function showResult() {
+    clearInterval(countdownTimer);
     const scores = computeScores();
     const answered = answers.filter(function (a) { return a !== null; }).length || 1;
     const quality = assessQuality(timings, answers);
 
-    // ==========================================
-    // 🚨 分支一：如果检测到乱答（嘲讽模式）
-    // ==========================================
+    // 🚨 分支一：乱答或挂机（客观判定模式）
     if (quality.suspicious) {
-      resName.textContent = "看来你不是";
-      resTag.textContent = "「病娇」";
-      resDesc.textContent = "你答得太快，或者全选了同一个选项。系统判定你并没有认真对待这份问卷。\n\n或许你心里根本没有一个让你离不开的人，又或者，你只是在用敷衍来掩饰你不敢面对的真相？";
+      if (quality.timeoutCount >= 4) {
+        resName.textContent = "测试超时";
+        resTag.textContent = "「作答无效」";
+        resDesc.textContent = "系统检测到您在多道题目上超时未作答。\n\n为了保证测试数据的有效性，本次结果已被标记为无效。请专注作答，重新测试。";
+        intValue.textContent = "数据异常";
+        intDesc.textContent = "由于大量题目超时未选，无法得出准确的心理倾向。";
+      } else {
+        resName.textContent = "测试无效";
+        resTag.textContent = "「作答异常」";
+        resDesc.textContent = "系统检测到本次作答速度过快，或选项高度重复。\n\n这说明您可能没有认真阅读题目，为了保证结果准确，未为您生成依赖图谱。建议静下心来重新测试。";
+        intValue.textContent = "数据异常";
+        intDesc.textContent = "由于作答过程不符合常规阅读习惯，测试结果不具备参考价值。";
+      }
       
-      chartEl.innerHTML = '<div style="padding: 24px 0; color: var(--muted); font-size: 13px; text-align: center; border: 1px dashed var(--line); border-radius: 12px; line-height: 1.6;">因为你敷衍了事，<br>系统拒绝为你生成病娇依赖图谱。</div>';
-      
-      intValue.textContent = "无法测量";
-      intDesc.textContent = "真正的病娇，会认真审视关于“爱”的每一个细节。";
-      
-      tagsEl.innerHTML = '<span class="tag" style="color:var(--red); border-color:var(--red-line);">判定：不合格的测试者</span>';
+      chartEl.innerHTML = '<div style="padding: 24px 0; color: var(--muted); font-size: 13px; text-align: center; border: 1px dashed var(--line); border-radius: 12px; line-height: 1.6;">由于作答数据异常，<br>系统已中止生成依赖图谱。</div>';
+      tagsEl.innerHTML = '<span class="tag" style="color:var(--muted); border-color:var(--line);">建议重新测试</span>';
       
       resultInner.classList.remove("anim-in");
       void resultInner.offsetWidth;
@@ -449,19 +474,17 @@
         answers: answers.slice(),
         scores: scores,
         topType: "cheat",
-        intensity: "乱答",
+        intensity: "异常",
         durationMs: Date.now() - startTs,
         timings: timings.map(function (t) { return t === null ? null : Math.round(t / 10) * 10; }),
         quality: quality
       });
 
       show("result");
-      return; // 结束函数
+      return;
     }
 
-    // ==========================================
     // ✅ 分支二：正常作答
-    // ==========================================
     const ranked = TYPES.map(function (t, i) {
       return { type: t, score: scores[t.key], order: i };
     }).sort(function (a, b) {
@@ -540,9 +563,6 @@
     show("result");
   }
 
-  /* =========================================================
-     流程控制
-     ========================================================= */
   function startQuiz() {
     idx = 0;
     locked = false;
@@ -561,10 +581,9 @@
 
   document.addEventListener("keydown", function (e) {
     if (!screens.quiz.classList.contains("active")) return;
-
     const i = LETTERS.indexOf(e.key.toUpperCase());
     if (i !== -1 && i < QUESTIONS[idx].opts.length) {
-      selectOption(i);
+      selectOption(i, false);
       return;
     }
     if (e.key === "ArrowRight") goNext();
